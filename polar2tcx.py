@@ -143,7 +143,8 @@ def ceilTime(dTime):
     ''' Round up a datetime object to next second
     '''
     if dTime.microsecond > 0:
-        dTime = dTime.replace(second=dTime.second+1, microsecond=0)
+        print dTime
+        dTime = dTime.replace(second=(dTime.second+1)%60, microsecond=0)
     return dTime
 
 def localTime2UTC(localTime):
@@ -219,9 +220,10 @@ def processFiles():
     # TODO: we might have several exercises in one XML :(
     exercise = PolarEx(xml.getElementsByTagName("exercise")[0])
 
-    # Extract HRM and speed values and split them
+    # Extract HRM, speed and cadence values and split them
     hrmList = []
     speedList = []
+    cadList = []
     sampleList = xml.getElementsByTagName('sample')
     for sample in sampleList:
         type = sample.getElementsByTagName('type')[0].childNodes[0].nodeValue
@@ -229,8 +231,11 @@ def processFiles():
             hrmList = sample.getElementsByTagName('values')[0].childNodes[0].nodeValue.split(',')
         if type.lower() == 'speed':
             speedList = sample.getElementsByTagName('values')[0].childNodes[0].nodeValue.split(',')
+        if type.lower() == 'cadence':
+            cadList = sample.getElementsByTagName('values')[0].childNodes[0].nodeValue.split(',')
     print("Found %d HRM values." % (len(hrmList)))
     print("Found %d speed values." % (len(speedList)))
+    print("Found %d cadence values." % (len(cadList)))
 
     # Determine the start time(s)
     start_time = startTime(xml)
@@ -256,6 +261,7 @@ def processFiles():
     curLapTime = start_time
     curHrm = 0
     curSpeed = 0
+    curCad = 0
     nAssignedGpx = 0
     for lap in lapList:
 
@@ -278,15 +284,26 @@ def processFiles():
                 out.write('            </HeartRateBpm>\n')
                 curHrm += 1
 
-            # Speed
-            if curSpeed < len(speedList):
+            # Speed and cadence
+            extAvailable = curSpeed < len(speedList) or curCad < len(cadList)
+
+            if extAvailable:
                 out.write('            <Extensions>\n')
                 out.write('               <TPX xmlns="http://www.garmin.com/xmlschemas/ActivityExtension/v2">\n')
+
+            if curSpeed < len(speedList):
                 out.write('                 <Speed>' + speedList[curSpeed]  + '</Speed>\n')
-                out.write('               </TPX>\n')
-                out.write('            </Extensions>\n')
                 curSpeed += 1
 
+            if curCad < len(cadList):
+                out.write('                 <RunCadence>' + cadList[curCad]  + '</RunCadence>\n')
+                curCad += 1
+
+            if extAvailable:
+                out.write('               </TPX>\n')
+                out.write('            </Extensions>\n')
+
+            # end Trackpoint
             out.write('          </Trackpoint>\n')
 
             curTime += timedelta(0, exercise.recRate)
